@@ -20,6 +20,7 @@ const expenseRoutes = require('./routes/expense.routes');
 
 app.use('/api/users', userRoutes);
 app.use('/api/expenses', expenseRoutes);
+
 app.use('/uploads', express.static('uploads'));
 
 app.listen(port, () => {
