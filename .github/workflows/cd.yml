@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout the repo (best practice)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup SSH with GitHub Secrets
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -17,16 +22,35 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
+      # 3️⃣ Deploy code on EC2
       - name: Deploy to EC2
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            if [ ! -d "${{ secrets.APP_DIR }}/.git" ]; then
-              git clone ${{ secrets.REPO_URL }} ${{ secrets.APP_DIR }}
+            set -e
+
+            # Ensure npm and pm2 are in PATH
+            export PATH=$PATH:/usr/bin:/usr/local/bin
+
+            # If using nvm, load it (optional)
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            # Go to app directory
+            cd ${{ secrets.APP_DIR }}
+
+            # Pull latest code
+            if [ ! -d ".git" ]; then
+              git clone ${{ secrets.REPO_URL }} .
+            else
+              git pull origin main
             fi
 
-            cd ${{ secrets.APP_DIR }}
-            git pull origin main
+            # Install dependencies
             npm install
-            pm2 restart express-backend || pm2 start index.js --name express-backend
+
+            # Reload PM2 (zero downtime) or start app if not running
+            pm2 reload express-backend || pm2 start index.js --name express-backend
+
+            # Save PM2 process list
             pm2 save
           EOF
